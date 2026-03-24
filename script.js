@@ -1,26 +1,45 @@
 let dados = [];
 
-async function carregarDados() {
-  try {
-    const response = await fetch(CONFIG.API_URL);
-    dados = await response.json();
-
-    if (!Array.isArray(dados)) {
-      console.error("Resposta inválida:", dados);
-      document.getElementById("cards").innerHTML = "<p>Erro ao carregar os dados.</p>";
-      return;
-    }
-
-    montarFiltro();
-    renderizarCards(dados);
-  } catch (erro) {
-    console.error("Erro ao carregar dados:", erro);
-    document.getElementById("cards").innerHTML = "<p>Erro ao carregar os dados.</p>";
+function carregarDados() {
+  const scriptExistente = document.getElementById("jsonp-dados");
+  if (scriptExistente) {
+    scriptExistente.remove();
   }
+
+  const script = document.createElement("script");
+  script.id = "jsonp-dados";
+  script.src = CONFIG.API_URL + "?callback=receberDados";
+  script.onerror = function () {
+    const container = document.getElementById("cards");
+    if (container) {
+      container.innerHTML = "<p>Erro ao carregar os dados.</p>";
+    }
+    console.error("Erro ao carregar o script JSONP.");
+  };
+
+  document.body.appendChild(script);
+}
+
+function receberDados(resposta) {
+  const container = document.getElementById("cards");
+
+  if (!Array.isArray(resposta)) {
+    console.error("Resposta inválida:", resposta);
+    if (container) {
+      container.innerHTML = "<p>Erro ao carregar os dados.</p>";
+    }
+    return;
+  }
+
+  dados = resposta;
+  montarFiltro();
+  renderizarCards(dados);
 }
 
 function montarFiltro() {
   const filtro = document.getElementById("filtro");
+  if (!filtro) return;
+
   filtro.innerHTML = '<option value="">Todas as CREs</option>';
 
   const cres = [...new Set(dados.map(item => item.CRE).filter(Boolean))].sort();
@@ -32,18 +51,26 @@ function montarFiltro() {
     filtro.appendChild(option);
   });
 
-  filtro.addEventListener("change", aplicarFiltro);
+  filtro.onchange = aplicarFiltro;
 }
 
 function aplicarFiltro() {
-  const valor = document.getElementById("filtro").value;
+  const filtro = document.getElementById("filtro");
+  if (!filtro) return;
+
+  const valor = filtro.value;
   const filtrados = valor ? dados.filter(item => item.CRE === valor) : dados;
+
   renderizarCards(filtrados);
 }
 
 function pegarCampo(item, opcoes) {
   for (const nome of opcoes) {
-    if (item[nome] !== undefined && item[nome] !== null && item[nome] !== "") {
+    if (
+      item[nome] !== undefined &&
+      item[nome] !== null &&
+      String(item[nome]).trim() !== ""
+    ) {
       return item[nome];
     }
   }
@@ -52,6 +79,8 @@ function pegarCampo(item, opcoes) {
 
 function renderizarCards(lista) {
   const container = document.getElementById("cards");
+  if (!container) return;
+
   container.innerHTML = "";
 
   if (!lista.length) {
@@ -60,7 +89,15 @@ function renderizarCards(lista) {
   }
 
   lista.forEach(item => {
-    const escola = pegarCampo(item, ["Escola", "ESCOLA", "UNIDADE ESCOLAR", "Unidade Escolar"]);
+    const escola = pegarCampo(item, [
+      "Escola",
+      "ESCOLA",
+      "UNIDADE ESCOLAR",
+      "Unidade Escolar",
+      "IE",
+      "Instituição Educacional"
+    ]);
+
     const cre = pegarCampo(item, ["CRE"]);
     const professor = pegarCampo(item, ["Professor", "PROFESSOR"]);
     const programa = pegarCampo(item, ["Programa", "PROGRAMA"]);
@@ -68,6 +105,7 @@ function renderizarCards(lista) {
 
     const card = document.createElement("div");
     card.className = "card";
+
     card.innerHTML = `
       <h3>${escola}</h3>
       <p><strong>CRE:</strong> ${cre}</p>
@@ -75,6 +113,7 @@ function renderizarCards(lista) {
       <p><strong>Programa:</strong> ${programa}</p>
       <p><strong>Status:</strong> ${status}</p>
     `;
+
     container.appendChild(card);
   });
 }
